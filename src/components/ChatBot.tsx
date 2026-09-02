@@ -5,7 +5,7 @@ import { llmReply, localAssistantReply, type ChatContext, type ChatMessage } fro
 const QUICK = ['Where should I sell?', 'When should I sell?', 'What is e-NAM?', 'How do I negotiate?']
 const KEY_STORAGE = 'agrisell.openai_key'
 
-export function ChatBot({ ctx }: { ctx: ChatContext }) {
+export function ChatBot({ ctx, hidden, onHide }: { ctx: ChatContext; hidden: boolean; onHide: () => void }) {
   const [open, setOpen] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [apiKey, setApiKey] = useState(() => localStorage.getItem(KEY_STORAGE) ?? import.meta.env.VITE_OPENAI_API_KEY ?? '')
@@ -45,17 +45,27 @@ export function ChatBot({ ctx }: { ctx: ChatContext }) {
 
   return (
     <>
-      {!open && (
-        <button
-          onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-xl transition hover:bg-violet-700"
-          aria-label="Open AI assistant"
-        >
-          <MessageCircle size={20} /> Ask AI
-        </button>
+      {!open && !hidden && (
+        <div className="group fixed bottom-5 right-5 z-40 flex items-center">
+          <button
+            onClick={() => setOpen(true)}
+            className="flex items-center gap-2 rounded-full bg-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-xl transition hover:bg-violet-700"
+            aria-label="Open AI assistant"
+          >
+            <MessageCircle size={20} /> Ask AI
+          </button>
+          <button
+            onClick={onHide}
+            className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-slate-700 text-white shadow hover:bg-slate-900"
+            aria-label="Hide AI assistant button"
+            title="Hide Ask AI button"
+          >
+            <X size={12} />
+          </button>
+        </div>
       )}
 
-      {open && (
+      {open && !hidden && (
         <div className="fixed bottom-5 right-5 z-40 flex h-[min(600px,85vh)] w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl fade-up">
           <div className="flex items-center gap-2 bg-violet-600 px-4 py-3 text-white">
             <Bot size={20} />
@@ -66,6 +76,9 @@ export function ChatBot({ ctx }: { ctx: ChatContext }) {
             <button onClick={() => setShowSettings((s) => !s)} className="rounded p-1 hover:bg-white/20" aria-label="Settings"><Settings2 size={16} /></button>
             <button onClick={() => setOpen(false)} className="rounded p-1 hover:bg-white/20" aria-label="Close"><X size={18} /></button>
           </div>
+          <button onClick={() => { setOpen(false); onHide() }} className="bg-violet-700/60 px-4 py-1 text-left text-[11px] text-violet-100 hover:bg-violet-700">
+            Remove Ask AI from the website (restore anytime via “AI assistant” in the header)
+          </button>
 
           {showSettings && (
             <div className="border-b border-slate-200 bg-violet-50 p-3 text-xs">

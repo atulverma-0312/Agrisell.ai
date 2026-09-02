@@ -20,6 +20,7 @@ const STAGES = [
 ] as const
 
 const DEFAULT_INPUT: FarmerInput = { crop: 'Onion', quantityQuintal: 120, grade: 'A', location: 'Nashik' }
+const CHAT_HIDDEN_KEY = 'agrisell.chat_hidden'
 const DEFAULT_CONSTRAINTS: FarmerConstraints = { sellingDeadlineDays: 14, storageCapacityQuintal: 60, budgetInr: 40000, transportLimitKm: 700 }
 
 export default function App() {
@@ -27,6 +28,11 @@ export default function App() {
   const [stage, setStage] = useState(0)
   const [input, setInput] = useState(DEFAULT_INPUT)
   const [constraints, setConstraints] = useState(DEFAULT_CONSTRAINTS)
+  const [chatHidden, setChatHiddenState] = useState(() => localStorage.getItem(CHAT_HIDDEN_KEY) === '1')
+  const setChatHidden = (v: boolean) => {
+    setChatHiddenState(v)
+    localStorage.setItem(CHAT_HIDDEN_KEY, v ? '1' : '0')
+  }
 
   const raw = useMemo(() => integrateData(), [])
   const report = useMemo(() => processData(raw, input.crop), [raw, input.crop])
@@ -34,9 +40,14 @@ export default function App() {
   const ranked = useMemo(() => rankOptions(options), [options])
   const rec = useMemo(() => buildRecommendation(input, constraints, ranked), [input, constraints, ranked])
 
-  const chat = <ChatBot ctx={{ input, constraints, rec }} />
+  const chat = <ChatBot ctx={{ input, constraints, rec }} hidden={chatHidden} onHide={() => setChatHidden(true)} />
+  const chatToggle = (
+    <button className="btn-secondary !py-1.5 text-xs" onClick={() => setChatHidden(!chatHidden)}>
+      <MessageCircle size={14} /> {chatHidden ? 'Show AI assistant' : 'Hide AI assistant'}
+    </button>
+  )
 
-  if (!started) return <><Landing onStart={() => setStarted(true)} />{chat}</>
+  if (!started) return <><Landing onStart={() => setStarted(true)} chatToggle={chatToggle} />{chat}</>
 
   return (
     <div className="min-h-screen">
@@ -46,9 +57,12 @@ export default function App() {
           <button className="flex items-center gap-2 font-bold text-emerald-700" onClick={() => setStarted(false)}>
             <Sprout size={22} /> AgriSell AI
           </button>
-          <button className="btn-secondary !py-1.5 text-xs" onClick={() => { setStage(0); setInput(DEFAULT_INPUT); setConstraints(DEFAULT_CONSTRAINTS) }}>
-            <RotateCcw size={14} /> Reset
-          </button>
+          <div className="flex items-center gap-2">
+            {chatToggle}
+            <button className="btn-secondary !py-1.5 text-xs" onClick={() => { setStage(0); setInput(DEFAULT_INPUT); setConstraints(DEFAULT_CONSTRAINTS) }}>
+              <RotateCcw size={14} /> Reset
+            </button>
+          </div>
         </div>
       </header>
 
@@ -104,7 +118,7 @@ export default function App() {
   )
 }
 
-function Landing({ onStart }: { onStart: () => void }) {
+function Landing({ onStart, chatToggle }: { onStart: () => void; chatToggle: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-white">
       <header className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5">
@@ -115,7 +129,10 @@ function Landing({ onStart }: { onStart: () => void }) {
           <a href="#sources">Data sources</a>
           <a href="#chat">AI assistant</a>
         </nav>
-        <button className="btn-primary" onClick={onStart}>Get recommendation</button>
+        <div className="flex items-center gap-2">
+          {chatToggle}
+          <button className="btn-primary" onClick={onStart}>Get recommendation</button>
+        </div>
       </header>
 
       <section className="mx-auto max-w-7xl px-4 py-16 text-center">
@@ -176,7 +193,7 @@ function Landing({ onStart }: { onStart: () => void }) {
           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-violet-600 text-white"><MessageCircle size={32} /></div>
           <div className="flex-1">
             <h2 className="text-2xl font-bold">Talk to the AI assistant anytime</h2>
-            <p className="mt-1 text-slate-600">Ask in your own words — “When should I sell my onions?”, “What is e-NAM?”, “How do I negotiate?”. The assistant knows your live recommendation and Indian agri-market basics (MSP, FPOs, grading, storage, payments). Use the <b>Ask AI</b> button at the bottom-right of every page.</p>
+            <p className="mt-1 text-slate-600">Ask in your own words — “When should I sell my onions?”, “What is e-NAM?”, “How do I negotiate?”. The assistant knows your live recommendation and Indian agri-market basics (MSP, FPOs, grading, storage, payments). Use the <b>Ask AI</b> button at the bottom-right of every page — you can hide or restore it anytime from the header.</p>
           </div>
         </div>
       </section>
