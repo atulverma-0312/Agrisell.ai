@@ -1,5 +1,6 @@
-import { ArrowLeft, ArrowRight, Calculator, ClipboardList, Cpu, Database, Handshake, Puzzle, RotateCcw, Sprout, Target, Trophy } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Calculator, ClipboardList, Cpu, Database, Handshake, MessageCircle, Puzzle, RotateCcw, Sprout, Target, Trophy } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { ChatBot } from './components/ChatBot'
 import { IntegrationStep, ProcessingStep } from './components/DataSteps'
 import { EconomicsStep, EngineStep, RankingStep } from './components/EngineSteps'
 import { InputStep } from './components/InputStep'
@@ -33,10 +34,13 @@ export default function App() {
   const ranked = useMemo(() => rankOptions(options), [options])
   const rec = useMemo(() => buildRecommendation(input, constraints, ranked), [input, constraints, ranked])
 
-  if (!started) return <Landing onStart={() => setStarted(true)} />
+  const chat = <ChatBot ctx={{ input, constraints, rec }} />
+
+  if (!started) return <><Landing onStart={() => setStarted(true)} />{chat}</>
 
   return (
     <div className="min-h-screen">
+      {chat}
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
           <button className="flex items-center gap-2 font-bold text-emerald-700" onClick={() => setStarted(false)}>
@@ -109,6 +113,7 @@ function Landing({ onStart }: { onStart: () => void }) {
           <a href="#how">How it works</a>
           <a href="#ai">AI models</a>
           <a href="#sources">Data sources</a>
+          <a href="#chat">AI assistant</a>
         </nav>
         <button className="btn-primary" onClick={onStart}>Get recommendation</button>
       </header>
@@ -162,6 +167,16 @@ function Landing({ onStart }: { onStart: () => void }) {
             ].map(([t, d]) => (
               <div key={t} className="rounded-xl border border-slate-700 bg-slate-800 p-5"><div className="font-semibold text-emerald-300">{t}</div><p className="mt-2 text-sm text-slate-300">{d}</p></div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="chat" className="mx-auto max-w-7xl px-4 py-14">
+        <div className="card flex flex-col items-center gap-6 bg-gradient-to-r from-violet-50 to-white p-8 md:flex-row">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-violet-600 text-white"><MessageCircle size={32} /></div>
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold">Talk to the AI assistant anytime</h2>
+            <p className="mt-1 text-slate-600">Ask in your own words — “When should I sell my onions?”, “What is e-NAM?”, “How do I negotiate?”. The assistant knows your live recommendation and Indian agri-market basics (MSP, FPOs, grading, storage, payments). Use the <b>Ask AI</b> button at the bottom-right of every page.</p>
           </div>
         </div>
       </section>

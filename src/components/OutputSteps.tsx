@@ -1,4 +1,4 @@
-import { CalendarDays, CheckCircle2, CreditCard, Handshake, IndianRupee, Lightbulb, Lock, MapPin, ShieldCheck, Sparkles, Target, Truck, User, Users } from 'lucide-react'
+import { CalendarDays, Check, CheckCircle2, CreditCard, Handshake, IndianRupee, Lightbulb, Lock, MapPin, ShieldCheck, Sparkles, Target, Truck, User, Users } from 'lucide-react'
 import { useState } from 'react'
 import { enhanceReasonWithLLM } from '../lib/ai'
 import { fmt } from '../lib/engine'
@@ -131,6 +131,24 @@ export function TransactionStep({ input, rec }: { input: FarmerInput; rec: Recom
         })}
       </ol>
 
+      {done >= 3 && (
+        <div className="mt-4 flex items-center gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-4 fade-up">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white"><Check size={22} strokeWidth={3} /></span>
+          <div>
+            <div className="font-bold text-emerald-800">Transaction secured</div>
+            <div className="text-xs text-emerald-700">Digital agreement signed · ₹{fmt(finalPrice * input.quantityQuintal)} held in escrow · Ref #AGS-{String(best.market.id).toUpperCase().slice(0, 4)}-{input.quantityQuintal}</div>
+          </div>
+          <ul className="ml-auto hidden gap-3 text-xs font-medium text-emerald-800 sm:flex">
+            {TX_STEPS.map((s, i) => (
+              <li key={s.title} className={`flex items-center gap-1 ${i < done ? '' : 'opacity-40'}`}>
+                <span className={`flex h-4 w-4 items-center justify-center rounded-full ${i < done ? 'bg-emerald-600 text-white' : 'border border-emerald-400'}`}>{i < done && <Check size={10} strokeWidth={4} />}</span>
+                {s.title.split(' ')[0]}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="mt-6 rounded-xl border border-slate-200 p-5">
         {done === 0 && (
           <div>
@@ -167,8 +185,8 @@ export function TransactionStep({ input, rec }: { input: FarmerInput; rec: Recom
         )}
         {done === 5 && (
           <div className="text-center">
-            <CheckCircle2 className="mx-auto text-emerald-600" size={40} />
-            <div className="mt-2 text-lg font-bold">Transaction complete</div>
+            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-600 text-white shadow-lg fade-up"><Check size={36} strokeWidth={3} /></span>
+            <div className="mt-3 text-lg font-bold">Transaction complete</div>
             <p className="text-sm text-slate-600">₹{fmt(finalPrice * input.quantityQuintal)} credited. Net after costs ≈ ₹{fmt(finalPrice * input.quantityQuintal - best.transportCost - best.storageCost - best.otherCosts)}.</p>
           </div>
         )}
