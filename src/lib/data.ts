@@ -1,15 +1,19 @@
 import type { Grade, PricePoint, RawMarket } from './types'
+import { UP_DISTRICT_NAMES, districtCoords, roadDistanceKm } from './up'
 
-export const CROPS = ['Wheat', 'Rice (Paddy)', 'Tomato', 'Onion', 'Soybean', 'Cotton'] as const
-export const LOCATIONS = ['Nashik', 'Pune', 'Nagpur', 'Indore', 'Lucknow'] as const
+// Major Uttar Pradesh crops (₹/quintal indicative base prices)
+export const CROPS = ['Wheat', 'Rice (Paddy)', 'Sugarcane', 'Potato', 'Mustard', 'Maize', 'Pulses (Arhar)', 'Mango'] as const
+export const LOCATIONS = UP_DISTRICT_NAMES
 
 const BASE_PRICE: Record<string, number> = {
   Wheat: 2275,
   'Rice (Paddy)': 2300,
-  Tomato: 1450,
-  Onion: 1800,
-  Soybean: 4600,
-  Cotton: 7000,
+  Sugarcane: 370,
+  Potato: 1100,
+  Mustard: 5650,
+  Maize: 2090,
+  'Pulses (Arhar)': 7550,
+  Mango: 3200,
 }
 
 // Deterministic pseudo-random so the demo is reproducible.
@@ -33,12 +37,18 @@ function history(crop: string, seed: number, bias: number, drift: number): Price
 
 const defaultPremium: Record<Grade, number> = { A: 1.08, B: 1, C: 0.9 }
 
+function distancesFrom(district: string): Record<string, number> {
+  const here = districtCoords(district)
+  const out: Record<string, number> = {}
+  for (const d of UP_DISTRICT_NAMES) out[d] = roadDistanceKm(districtCoords(d), here)
+  return out
+}
+
 function build(
   id: string,
   name: string,
   type: RawMarket['type'],
   district: string,
-  distanceKm: Record<string, number>,
   bias: number,
   drift: number,
   demand: number,
@@ -60,7 +70,7 @@ function build(
     name,
     type,
     district,
-    distanceKm,
+    distanceKm: distancesFrom(district),
     history: hist,
     demandQuintal: dem,
     buyer,
@@ -73,49 +83,45 @@ function build(
   }
 }
 
-const D = (n: number, p: number, ng: number, i: number, l: number) => ({
-  Nashik: n,
-  Pune: p,
-  Nagpur: ng,
-  Indore: i,
-  Lucknow: l,
-})
-
 export const RAW_MARKETS: RawMarket[] = [
-  build('lasalgaon', 'Lasalgaon APMC', 'Mandi', 'Nashik', D(25, 210, 620, 480, 1250), 1.0, 1.6, 900, 0.9, 1.5, true, 'AGMARKNET'),
-  build('pune-apmc', 'Pune Market Yard', 'Mandi', 'Pune', D(215, 12, 720, 600, 1400), 1.06, 0.8, 1200, 0.88, 2, true, 'AGMARKNET'),
-  build('nagpur-enam', 'Nagpur e-NAM', 'e-NAM', 'Nagpur', D(640, 720, 15, 470, 880), 1.04, 2.1, 700, 0.93, 1, false, 'e-NAM'),
-  build('indore-enam', 'Indore e-NAM', 'e-NAM', 'Indore', D(480, 600, 470, 10, 850), 1.03, -1.2, 800, 0.91, 1, true, 'e-NAM'),
-  build('lucknow-apmc', 'Lucknow Mandi', 'Mandi', 'Lucknow', D(1250, 1400, 880, 850, 8), 0.97, 2.8, 1000, 0.82, 1.5, false, 'AGMARKNET'),
-  build('agrofresh', 'AgroFresh Foods Pvt Ltd', 'Buyer', 'Nashik', D(40, 190, 600, 460, 1230), 1.11, 0.3, 350, 0.96, 0, false, 'Buyer Portal', 'AgroFresh Procurement'),
-  build('sahyadri-fpo', 'Sahyadri Farmers FPO', 'FPO', 'Nashik', D(18, 220, 630, 490, 1260), 1.02, 1.0, 500, 0.94, 0.5, true, 'FPO Network', 'Sahyadri FPO'),
-  build('bigbasket', 'BigBasket Sourcing Hub', 'Buyer', 'Pune', D(200, 25, 710, 590, 1380), 1.14, -0.4, 260, 0.9, 0, false, 'Buyer Portal', 'BB Fresh Sourcing'),
+  build('lucknow-mandi', 'Lucknow (Sitapur Road) Mandi', 'Mandi', 'Lucknow', 1.02, 1.4, 1400, 0.9, 1.5, true, 'AGMARKNET'),
+  build('kanpur-enam', 'Kanpur Chakarpur e-NAM', 'e-NAM', 'Kanpur Nagar', 1.04, 1.9, 1600, 0.93, 1, true, 'e-NAM'),
+  build('agra-mandi', 'Agra Sikandra Mandi', 'Mandi', 'Agra', 1.0, 0.6, 1300, 0.87, 1.5, true, 'AGMARKNET'),
+  build('varanasi-enam', 'Varanasi Pahadiya e-NAM', 'e-NAM', 'Varanasi', 1.03, 2.2, 1100, 0.92, 1, false, 'e-NAM'),
+  build('meerut-mandi', 'Meerut Navin Mandi', 'Mandi', 'Meerut', 1.05, -0.8, 1200, 0.88, 1.5, true, 'AGMARKNET'),
+  build('gorakhpur-mandi', 'Gorakhpur Mahewa Mandi', 'Mandi', 'Gorakhpur', 0.98, 2.6, 900, 0.84, 1.5, false, 'AGMARKNET'),
+  build('prayagraj-enam', 'Prayagraj Mundera e-NAM', 'e-NAM', 'Prayagraj', 1.01, 1.1, 1000, 0.9, 1, true, 'e-NAM'),
+  build('bareilly-mandi', 'Bareilly Delapeer Mandi', 'Mandi', 'Bareilly', 0.99, 0.9, 950, 0.86, 1.5, false, 'AGMARKNET'),
+  build('itc-saharanpur', 'ITC Agri Business (Saharanpur)', 'Buyer', 'Saharanpur', 1.1, 0.2, 500, 0.96, 0, false, 'Buyer Portal', 'ITC e-Choupal Procurement'),
+  build('reliance-fresh-lko', 'Reliance Retail Sourcing Hub', 'Buyer', 'Lucknow', 1.12, -0.3, 400, 0.94, 0, false, 'Buyer Portal', 'Reliance Fresh Sourcing'),
+  build('hafed-aligarh', 'Aligarh Kisan Producer FPO', 'FPO', 'Aligarh', 1.03, 1.0, 600, 0.93, 0.5, true, 'FPO Network', 'Aligarh FPO'),
+  build('dcm-hardoi', 'DCM Shriram Sugar (Hardoi)', 'Buyer', 'Hardoi', 1.08, 0.5, 700, 0.95, 0, true, 'Buyer Portal', 'DCM Shriram Cane Procurement'),
 ]
 
 // Simulate a dirty feed: duplicates, missing values, outliers, inconsistent units.
 export function fetchRawFeed(): RawMarket[] {
   const dirty: RawMarket[] = RAW_MARKETS.map((m) => ({ ...m, history: { ...m.history } }))
   // duplicate record
-  dirty.push({ ...RAW_MARKETS[0], id: 'lasalgaon', raw: true })
-  // outlier in Pune history (price in paise instead of rupees)
-  const pune = dirty[1]
-  pune.history = { ...pune.history }
+  dirty.push({ ...RAW_MARKETS[0], id: 'lucknow-mandi', raw: true })
+  // outlier in Kanpur history (price in paise instead of rupees)
+  const kanpur = dirty[1]
+  kanpur.history = { ...kanpur.history }
   for (const crop of CROPS) {
-    const h = [...pune.history[crop]]
+    const h = [...kanpur.history[crop]]
     h[10] = { day: h[10].day, price: h[10].price * 100 }
-    pune.history[crop] = h
+    kanpur.history[crop] = h
   }
-  // missing point in Nagpur history
-  const nagpur = dirty[2]
-  nagpur.history = { ...nagpur.history }
+  // missing point in Varanasi history
+  const varanasi = dirty[3]
+  varanasi.history = { ...varanasi.history }
   for (const crop of CROPS) {
-    const h = [...nagpur.history[crop]]
+    const h = [...varanasi.history[crop]]
     h[5] = { day: h[5].day, price: Number.NaN }
-    nagpur.history[crop] = h
+    varanasi.history[crop] = h
   }
   // stale market with no demand data
   dirty.push({
-    ...build('ghost', 'Unknown Yard', 'Mandi', 'N/A', D(9999, 9999, 9999, 9999, 9999), 1, 0, 0, 0.1, 1, false, 'AGMARKNET'),
+    ...build('ghost', 'Unknown Yard', 'Mandi', 'Lucknow', 1, 0, 0, 0.1, 1, false, 'AGMARKNET'),
     demandQuintal: {},
   })
   return dirty

@@ -52,7 +52,7 @@ export function OutputStep({ input, constraints, rec }: { input: FarmerInput; co
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <input className="input min-w-0 sm:flex-1" type="password" placeholder="OpenAI API key (sk-...)" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
               <select className="input sm:w-36 sm:shrink-0" value={language} onChange={(e) => setLanguage(e.target.value)}>
-                {['Hindi', 'Marathi', 'English', 'Punjabi', 'Telugu', 'Tamil'].map((l) => <option key={l}>{l}</option>)}
+                {['Hindi', 'English', 'Urdu', 'Awadhi', 'Bhojpuri'].map((l) => <option key={l}>{l}</option>)}
               </select>
               <button className="btn-primary" onClick={explain} disabled={!apiKey || busy}>{busy ? 'Thinking…' : 'Explain'}</button>
             </div>

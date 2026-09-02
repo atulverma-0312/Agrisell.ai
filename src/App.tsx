@@ -19,7 +19,7 @@ const STAGES = [
   { key: 'transact', label: 'Buyer Connection', icon: Handshake },
 ] as const
 
-const DEFAULT_INPUT: FarmerInput = { crop: 'Onion', quantityQuintal: 120, grade: 'A', location: 'Nashik' }
+const DEFAULT_INPUT: FarmerInput = { crop: 'Wheat', quantityQuintal: 120, grade: 'A', location: 'Lucknow' }
 const CHAT_HIDDEN_KEY = 'agrisell.chat_hidden'
 const DEFAULT_CONSTRAINTS: FarmerConstraints = { sellingDeadlineDays: 14, storageCapacityQuintal: 60, budgetInr: 40000, transportLimitKm: 700 }
 
@@ -136,19 +136,19 @@ function Landing({ onStart, chatToggle }: { onStart: () => void; chatToggle: Rea
       </header>
 
       <section className="mx-auto max-w-7xl px-4 py-16 text-center">
-        <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Farmer-specific market optimization</span>
+        <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Farmer-specific market optimization · Uttar Pradesh</span>
         <h1 className="mx-auto mt-5 max-w-3xl text-4xl font-extrabold tracking-tight text-slate-900 md:text-6xl">
           Know <span className="text-emerald-600">where</span>, to <span className="text-emerald-600">whom</span> and <span className="text-emerald-600">when</span> to sell your harvest
         </h1>
         <p className="mx-auto mt-5 max-w-2xl text-lg text-slate-600">
-          AgriSell AI integrates e-NAM, mandi, buyer and logistics data, runs AI price & demand models against your own constraints, and hands you a ranked, explained recommendation with net-return estimates.
+          AgriSell AI integrates Uttar Pradesh e-NAM, mandi, buyer and logistics data across all 75 districts, runs AI price & demand models against your own constraints, and hands you a ranked, explained recommendation with net-return estimates.
         </p>
         <div className="mt-8 flex justify-center gap-3">
           <button className="btn-primary !px-7 !py-3 !text-base" onClick={onStart}>Start free analysis <ArrowRight size={18} /></button>
           <a href="#how" className="btn-secondary !px-7 !py-3 !text-base">See the pipeline</a>
         </div>
-        <div className="mx-auto mt-12 grid max-w-3xl grid-cols-3 gap-4">
-          {[['8', 'markets & buyers compared'], ['4', 'AI models per option'], ['30 d', 'price history analysed']].map(([v, l]) => (
+        <div className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-4 sm:grid-cols-4">
+          {[['12', 'UP markets & buyers compared'], ['75', 'UP districts covered'], ['4', 'AI models per option'], ['30 d', 'price history analysed']].map(([v, l]) => (
             <div key={l} className="card p-4"><div className="text-3xl font-extrabold text-emerald-700">{v}</div><div className="text-xs text-slate-500">{l}</div></div>
           ))}
         </div>
@@ -180,7 +180,7 @@ function Landing({ onStart, chatToggle }: { onStart: () => void; chatToggle: Rea
               ['Price prediction', 'Ensemble of linear trend regression and Holt exponential smoothing forecasts prices up to your deadline and picks the best selling day.'],
               ['Demand forecasting', 'Buyer appetite and saturation modelling estimate how much of your lot each market can absorb without depressing price.'],
               ['Multi-criteria ranking', 'A utility score blends net return, market suitability, demand and volatility risk to rank options and compute confidence.'],
-              ['Explainable advice', 'Recommendation reasons are generated automatically, with optional LLM rewriting in Hindi, Marathi and other languages.'],
+              ['Explainable advice', 'Recommendation reasons are generated automatically, with optional LLM rewriting in Hindi, Urdu, Awadhi and Bhojpuri.'],
             ].map(([t, d]) => (
               <div key={t} className="rounded-xl border border-slate-700 bg-slate-800 p-5"><div className="font-semibold text-emerald-300">{t}</div><p className="mt-2 text-sm text-slate-300">{d}</p></div>
             ))}
