@@ -9,7 +9,8 @@ import { QualityGrading } from './components/QualityGrading'
 import { CROPS } from './lib/data'
 import { OutputStep, TransactionStep } from './components/OutputSteps'
 import { buildOptions, buildRecommendation, integrateData, processData, rankOptions } from './lib/engine'
-import type { FarmerConstraints, FarmerInput, Grade } from './lib/types'
+import type { FarmerConstraints, FarmerInput } from './lib/types'
+import type { SharedAssessment } from './lib/grading'
 
 const STAGES = [
   { key: 'input', label: 'Farmer Input & Constraints', icon: ClipboardList },
@@ -35,6 +36,7 @@ export default function App() {
   const [stage, setStage] = useState(0)
   const [view, setView] = useState<'pipeline' | 'grading'>('pipeline')
   const [input, setInput] = useState(DEFAULT_INPUT)
+  const [aiAssessment, setAiAssessment] = useState<SharedAssessment | null>(null)
   const [constraints, setConstraints] = useState(DEFAULT_CONSTRAINTS)
   const [chatHidden, setChatHiddenState] = useState(() => localStorage.getItem(CHAT_HIDDEN_KEY) === '1')
   const setChatHidden = (v: boolean) => {
@@ -70,8 +72,14 @@ export default function App() {
   const openDashboard = () => { setStarted(true); setView('pipeline'); setStage(DASHBOARD_STAGE) }
   const openGrading = () => { setStarted(true); setView('grading') }
   const goStage = (i: number) => { setView('pipeline'); setStage(i) }
-  const useGrade = (crop: string, grade: Grade, quantityQuintal: number) => {
-    setInput({ ...input, crop: (CROPS as readonly string[]).includes(crop) ? crop : input.crop, grade, quantityQuintal })
+  const useGrade = (a: SharedAssessment) => {
+    setAiAssessment(a)
+    setInput({
+      ...input,
+      crop: (CROPS as readonly string[]).includes(a.crop) ? a.crop : input.crop,
+      grade: a.predictedGrade,
+      quantityQuintal: Math.max(1, Math.round(a.quantityKg / 100)),
+    })
     goStage(0)
   }
   if (!started) return <><Landing onStart={() => setStarted(true)} onDashboard={openDashboard} onGrading={openGrading} chatToggle={chatToggle} />{chat}</>
@@ -143,7 +151,6 @@ export default function App() {
               <QualityGrading
                 step={0}
                 markets={report.markets}
-                defaultCrop={input.crop}
                 defaultLocation={input.location}
                 onUseGrade={useGrade}
                 onCompareMarkets={() => goStage(6)}
@@ -152,7 +159,7 @@ export default function App() {
           ) : (
           <>
           <div key={stage}>
-            {stage === 0 && <InputStep input={input} constraints={constraints} onInput={setInput} onConstraints={setConstraints} onGradeFromPhoto={openGrading} />}
+            {stage === 0 && <InputStep input={input} constraints={constraints} onInput={setInput} onConstraints={setConstraints} onGradeFromPhoto={openGrading} aiAssessment={aiAssessment} onClearAssessment={() => setAiAssessment(null)} />}
             {stage === 1 && <IntegrationStep raw={raw} feedVersion={feedVersion} lastSync={lastSync} autoRefresh={autoRefresh} onToggleAuto={() => setAutoRefresh((a) => !a)} onRefresh={refreshFeed} />}
             {stage === 2 && <ProcessingStep report={report} />}
             {stage === 3 && <EngineStep input={input} options={options} />}

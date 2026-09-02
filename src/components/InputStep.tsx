@@ -1,7 +1,8 @@
-import { ClipboardList, Leaf, ScanSearch } from 'lucide-react'
+import { CheckCircle2, ClipboardList, Leaf, ScanSearch, X } from 'lucide-react'
 import { CROPS, LOCATIONS } from '../lib/data'
+import type { SharedAssessment } from '../lib/grading'
 import type { FarmerConstraints, FarmerInput, Grade } from '../lib/types'
-import { StepHeader } from './ui'
+import { Badge, StepHeader } from './ui'
 
 export function InputStep({
   input,
@@ -9,17 +10,35 @@ export function InputStep({
   onInput,
   onConstraints,
   onGradeFromPhoto,
+  aiAssessment,
+  onClearAssessment,
 }: {
   input: FarmerInput
   constraints: FarmerConstraints
   onInput: (v: FarmerInput) => void
   onConstraints: (v: FarmerConstraints) => void
   onGradeFromPhoto?: () => void
+  aiAssessment?: SharedAssessment | null
+  onClearAssessment?: () => void
 }) {
+  const aiApplied = aiAssessment && aiAssessment.predictedGrade === input.grade
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <section className="card p-6 fade-up">
         <StepHeader step={1} title="Farmer Input" subtitle="What are you selling and from where?" icon={Leaf} color="bg-emerald-600" />
+        {aiAssessment && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900" data-testid="ai-assessment-banner">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 size={16} className="text-emerald-600" />
+              <span>
+                AI photo grade applied: <b>Grade {aiAssessment.predictedGrade}</b> · {aiAssessment.qualityScore}/100 · {Math.round(aiAssessment.confidence * 100)}% confidence · {aiAssessment.quantityKg.toLocaleString('en-IN')} kg
+              </span>
+              {aiAssessment.source === 'demo' && <Badge tone="amber">Demo AI Result</Badge>}
+              {!aiApplied && <Badge tone="amber">grade edited manually</Badge>}
+            </div>
+            {onClearAssessment && <button className="text-xs text-slate-500 hover:underline" onClick={onClearAssessment}><X size={12} className="inline" /> dismiss</button>}
+          </div>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="label" htmlFor="crop">Crop</label>

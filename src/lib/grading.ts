@@ -78,13 +78,84 @@ export interface Assessment extends GradingResult {
   imageCount: number
 }
 
+/** Object handed from the grading module to the Selling Strategy Simulator. */
+export interface SharedAssessment {
+  assessmentId: string
+  crop: string
+  variety?: string
+  quantityKg: number
+  predictedGrade: Grade
+  qualityScore: number
+  confidence: number
+  parameters: GradingParameters
+  detectedIssues: string[]
+  positiveFactors: string[]
+  source: GradingResult['source']
+  timestamp: number
+}
+
+export function toShared(a: Assessment, quantityKg: number): SharedAssessment {
+  return {
+    assessmentId: a.id,
+    crop: a.crop,
+    variety: a.variety,
+    quantityKg,
+    predictedGrade: a.predicted_grade,
+    qualityScore: a.visual_quality_score,
+    confidence: a.confidence,
+    parameters: a.parameters,
+    detectedIssues: a.detected_issues,
+    positiveFactors: a.positive_factors,
+    source: a.source,
+    timestamp: a.createdAt,
+  }
+}
+
+/**
+ * Processing stages shown while a request is in flight. Services report the index they have
+ * genuinely reached; a single-response backend only reports 0 (sent), 2 (response received)
+ * and 7 (parsed), and the UI labels intermediate items as "processing" rather than verified.
+ */
 export const ANALYSIS_STEPS = [
   'Image received',
+  'Image quality validated',
   'Detecting produce',
-  'Analyzing visible quality characteristics',
-  'Estimating quality grade',
-  'Generating selling insights',
+  'Identifying visible characteristics',
+  'Detecting visible defects',
+  'Calculating quality score',
+  'Predicting grade',
+  'Generating explanation',
 ]
+
+export type GradingErrorKind = 'produce_not_detected' | 'api' | 'network' | 'timeout' | 'not_configured'
+
+export class GradingError extends Error {
+  kind: GradingErrorKind
+  constructor(kind: GradingErrorKind, detail?: string) {
+    super(detail ?? kind)
+    this.kind = kind
+  }
+}
+
+export type AiMode = 'demo' | 'production'
+export function aiMode(): AiMode {
+  return (import.meta.env.VITE_AI_MODE as string | undefined) === 'production' ? 'production' : 'demo'
+}
+
+const REQUEST_TIMEOUT_MS = 45_000
+
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal })
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') throw new GradingError('timeout')
+    throw new GradingError('network', e instanceof Error ? e.message : undefined)
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 /* ---------------- image validation ---------------- */
 
@@ -103,13 +174,76 @@ export function validateFile(file: File): string | null {
   return null
 }
 
-export function readAsDataUrl(file: File): Promise<string> {
+export function readAsDataUrl(file: File, onProgress?: (fraction: number) => void): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader()
-    r.onload = () => resolve(String(r.result))
+    r.onprogress = (ev) => {
+      if (ev.lengthComputable) onProgress?.(ev.loaded / ev.total)
+    }
+    r.onload = () => {
+      onProgress?.(1)
+      resolve(String(r.result))
+    }
     r.onerror = () => reject(new Error('Could not read file'))
     r.readAsDataURL(file)
   })
+}
+
+export const VALIDATION_CHECKS = ['File format', 'Resolution', 'Image integrity', 'Image quality', 'Produce visibility'] as const
+export type ValidationCheck = (typeof VALIDATION_CHECKS)[number]
+export type CheckState = 'pending' | 'running' | 'passed' | 'failed'
+
+/**
+ * Runs the validation checks sequentially and reports each one as it truly completes.
+ * Resolves with the final ImageCheck (ok=false when any check failed).
+ */
+export async function validateImageStaged(file: File, dataUrl: string, onCheck: (check: ValidationCheck, state: CheckState) => void): Promise<ImageCheck> {
+  const problems: string[] = []
+  const fail = (check: ValidationCheck, msg: string) => {
+    problems.push(msg)
+    onCheck(check, 'failed')
+  }
+
+  onCheck('File format', 'running')
+  const fmtErr = validateFile(file)
+  if (fmtErr) fail('File format', fmtErr)
+  else onCheck('File format', 'passed')
+
+  onCheck('Image integrity', 'running')
+  let img: HTMLImageElement | null = null
+  try {
+    img = await loadImage(dataUrl)
+    onCheck('Image integrity', 'passed')
+  } catch {
+    fail('Image integrity', 'The file could not be decoded as an image.')
+  }
+  if (!img) {
+    onCheck('Resolution', 'failed')
+    onCheck('Image quality', 'failed')
+    onCheck('Produce visibility', 'failed')
+    return { ok: false, problems, brightness: 0, sharpness: 0, coverage: 0 }
+  }
+
+  onCheck('Resolution', 'running')
+  if (img.naturalWidth < 200 || img.naturalHeight < 200) fail('Resolution', 'Image resolution is too low.')
+  else onCheck('Resolution', 'passed')
+
+  onCheck('Image quality', 'running')
+  const s = await pixelStats(dataUrl)
+  const q: string[] = []
+  if (s.brightness < 50) q.push('Image is too dark.')
+  if (s.brightness > 235) q.push('Image is over-exposed.')
+  if (s.sharpness < 3) q.push('Image appears blurry.')
+  if (q.length) {
+    problems.push(...q)
+    onCheck('Image quality', 'failed')
+  } else onCheck('Image quality', 'passed')
+
+  onCheck('Produce visibility', 'running')
+  if (s.coverage < 0.15) fail('Produce visibility', 'Produce not clearly visible / does not fill enough of the frame.')
+  else onCheck('Produce visibility', 'passed')
+
+  return { ok: problems.length === 0, problems, brightness: s.brightness, sharpness: s.sharpness, coverage: s.coverage }
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -284,12 +418,13 @@ export const demoService: QualityGradingService = {
   isDemo: true,
   async analyze(req, onStep) {
     onStep?.(0)
+    onStep?.(1)
     const per: { score: number; grade: Grade; confidence: number; params: GradingParameters }[] = []
     for (const img of req.images) {
-      onStep?.(1)
-      const s = await pixelStats(img)
-      if (s.coverage < 0.05) throw new Error('PRODUCE_NOT_DETECTED')
       onStep?.(2)
+      const s = await pixelStats(img)
+      if (s.coverage < 0.05) throw new GradingError('produce_not_detected')
+      onStep?.(3)
       const clamp = (v: number) => Math.max(40, Math.min(98, Math.round(v)))
       const params: GradingParameters = {
         appearance: clamp(70 + (s.brightness - 120) / 6 + s.sharpness),
@@ -298,13 +433,16 @@ export const demoService: QualityGradingService = {
         visible_defects: clamp(93 - s.darkSpots * 120 - Math.max(0, 0.25 - s.colorVar) * 20),
         uniformity: clamp(88 - Math.abs(s.colorVar - 0.15) * 60 + s.coverage * 6),
       }
-      onStep?.(3)
+      onStep?.(4)
       const score = Math.round((params.appearance + params.color_uniformity + params.surface_condition + params.visible_defects + params.uniformity) / 5)
       const confidence = Math.min(0.9, 0.55 + Math.min(s.sharpness, 12) / 40 + Math.min(s.coverage, 0.6) / 3)
       per.push({ score, grade: scoreToGrade(score), confidence, params })
+      onStep?.(5)
     }
-    onStep?.(4)
-    return aggregate(req.crop, per, 'demo')
+    onStep?.(6)
+    const out = aggregate(req.crop, per, 'demo')
+    onStep?.(7)
+    return out
   },
 }
 
@@ -318,7 +456,7 @@ export function openAIVisionService(apiKey: string): QualityGradingService {
       onStep?.(0)
       onStep?.(1)
       const prompt = `You are an agricultural produce visual grader for Indian APMC/e-NAM markets. Crop: ${req.crop}${req.variety ? `, variety ${req.variety}` : ''}. Assess ONLY visible characteristics. Reply with strict JSON: {"produce_detected":bool,"parameters":{"appearance":0-100,"color_uniformity":0-100,"surface_condition":0-100,"visible_defects":0-100,"uniformity":0-100},"confidence":0-1}. Do not assess moisture, chemicals, protein or contamination.`
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      const res = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
@@ -333,16 +471,26 @@ export function openAIVisionService(apiKey: string): QualityGradingService {
           ],
         }),
       })
-      if (!res.ok) throw new Error('API_FAILURE')
+      if (!res.ok) throw new GradingError('api', `HTTP ${res.status}`)
       onStep?.(2)
       const json = (await res.json()) as { choices: { message: { content: string } }[] }
-      const parsed = JSON.parse(json.choices[0]?.message.content ?? '{}') as { produce_detected?: boolean; parameters?: GradingParameters; confidence?: number }
-      if (!parsed.produce_detected || !parsed.parameters) throw new Error('PRODUCE_NOT_DETECTED')
-      onStep?.(3)
+      let parsed: { produce_detected?: boolean; parameters?: Partial<GradingParameters>; confidence?: number }
+      try {
+        parsed = JSON.parse(json.choices[0]?.message.content ?? '{}') as typeof parsed
+      } catch {
+        throw new GradingError('api', 'Malformed model response')
+      }
+      if (!parsed.produce_detected) throw new GradingError('produce_not_detected')
       const p = parsed.parameters
-      const score = Math.round((p.appearance + p.color_uniformity + p.surface_condition + p.visible_defects + p.uniformity) / 5)
-      onStep?.(4)
-      return aggregate(req.crop, [{ score, grade: scoreToGrade(score), confidence: parsed.confidence ?? 0.7, params: p }], 'openai-vision')
+      const keys: (keyof GradingParameters)[] = ['appearance', 'color_uniformity', 'surface_condition', 'visible_defects', 'uniformity']
+      if (!p || keys.some((k) => typeof p[k] !== 'number' || Number.isNaN(p[k]))) throw new GradingError('api', 'Incomplete parameters')
+      const params = p as GradingParameters
+      onStep?.(6)
+      const score = Math.round(keys.reduce((a, k) => a + Math.max(0, Math.min(100, params[k])), 0) / keys.length)
+      const conf = typeof parsed.confidence === 'number' ? Math.max(0, Math.min(1, parsed.confidence)) : 0.7
+      const out = aggregate(req.crop, [{ score, grade: scoreToGrade(score), confidence: conf, params }], 'openai-vision')
+      onStep?.(7)
+      return out
     },
   }
 }
@@ -354,25 +502,95 @@ export function remoteApiService(endpoint: string): QualityGradingService {
     isDemo: false,
     async analyze(req, onStep) {
       onStep?.(0)
-      const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) })
-      if (!res.ok) throw new Error('API_FAILURE')
-      onStep?.(4)
-      return { ...((await res.json()) as GradingResult), source: 'api' }
+      const res = await fetchWithTimeout(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) })
+      if (!res.ok) throw new GradingError('api', `HTTP ${res.status}`)
+      onStep?.(2)
+      const body = (await res.json()) as Partial<GradingResult> & { status?: string }
+      if (body.status === 'produce_not_detected' || body.produce_detected === false) throw new GradingError('produce_not_detected')
+      if (!body.predicted_grade || typeof body.visual_quality_score !== 'number' || typeof body.confidence !== 'number' || !body.parameters)
+        throw new GradingError('api', 'Incomplete response')
+      const { positive, negative, issues } = explain(body.parameters)
+      onStep?.(7)
+      return {
+        crop: body.crop ?? req.crop,
+        predicted_grade: body.predicted_grade,
+        visual_quality_score: body.visual_quality_score,
+        confidence: body.confidence,
+        parameters: body.parameters,
+        detected_issues: body.detected_issues ?? issues,
+        positive_factors: body.positive_factors ?? positive,
+        negative_factors: body.negative_factors ?? negative,
+        recommendation: body.recommendation ?? recommendationFor(body.predicted_grade),
+        produce_detected: true,
+        per_image: body.per_image ?? [{ score: body.visual_quality_score, grade: body.predicted_grade, confidence: body.confidence }],
+        variation_warning: body.variation_warning ?? false,
+        source: 'api',
+      }
     },
   }
 }
 
+const notConfiguredService: QualityGradingService = {
+  name: 'AI service not configured',
+  isDemo: false,
+  analyze: () => Promise.reject(new GradingError('not_configured')),
+}
+
+/**
+ * AI_MODE=demo (default): demo heuristic unless a real endpoint/key is present.
+ * AI_MODE=production: never fall back to the demo grader.
+ */
 export function pickService(apiKey: string): QualityGradingService {
   const endpoint = import.meta.env.VITE_GRADING_API as string | undefined
   if (endpoint) return remoteApiService(endpoint)
   if (apiKey) return openAIVisionService(apiKey)
-  return demoService
+  return aiMode() === 'production' ? notConfiguredService : demoService
+}
+
+export function errorKind(e: unknown): GradingErrorKind {
+  return e instanceof GradingError ? e.kind : 'api'
 }
 
 export function friendlyError(e: unknown): string {
-  const msg = e instanceof Error ? e.message : ''
-  if (msg === 'PRODUCE_NOT_DETECTED') return 'We could not clearly detect produce in this photo. Please place the produce in the centre against a plain background.'
-  return "We couldn't analyze this image right now. Please try again with a clearer photo."
+  switch (errorKind(e)) {
+    case 'produce_not_detected':
+      return 'The selected produce could not be clearly identified in this image.'
+    case 'network':
+      return 'Connection interrupted. Please check your internet connection.'
+    case 'timeout':
+      return 'The AI service took too long to respond.'
+    case 'not_configured':
+      return 'The AI grading service is not configured yet. Please contact support.'
+    default:
+      return "We couldn't complete the AI analysis."
+  }
+}
+
+/* ---------------- draft (resume unfinished session) ---------------- */
+
+export interface Draft {
+  crop: string
+  variety: string
+  location: string
+  harvest: string
+  savedAt: number
+}
+
+const DRAFT_KEY = 'agrisell.grading_draft'
+
+export function loadDraft(): Draft | null {
+  try {
+    const d = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null') as Draft | null
+    return d && d.crop ? d : null
+  } catch {
+    return null
+  }
+}
+export function saveDraft(d: Omit<Draft, 'savedAt'>) {
+  localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...d, savedAt: Date.now() }))
+}
+export function clearDraft() {
+  localStorage.removeItem(DRAFT_KEY)
 }
 
 /* ---------------- history (browser storage) ---------------- */
