@@ -23,14 +23,16 @@ function rng(seed: number) {
   return () => (s = (s * 16807) % 2147483647) / 2147483647
 }
 
+export const HISTORY_DAYS = 180 // 6 months of daily prices
+
 function history(crop: string, seed: number, bias: number, drift: number): PricePoint[] {
   const r = rng(seed)
   const base = BASE_PRICE[crop] * bias
   const out: PricePoint[] = []
-  for (let d = -30; d <= 0; d++) {
+  for (let d = -HISTORY_DAYS; d <= 0; d++) {
     const noise = (r() - 0.5) * base * 0.05
-    const seasonal = Math.sin((d + seed) / 6) * base * 0.02
-    out.push({ day: d, price: Math.round(base + drift * (d + 30) + noise + seasonal) })
+    const seasonal = Math.sin((d + seed) / 6) * base * 0.02 + Math.sin((d + seed) / 29) * base * 0.06
+    out.push({ day: d, price: Math.round(base + (drift * (d + HISTORY_DAYS)) / 6 + noise + seasonal) })
   }
   return out
 }
@@ -98,9 +100,25 @@ export const RAW_MARKETS: RawMarket[] = [
   build('dcm-hardoi', 'DCM Shriram Sugar (Hardoi)', 'Buyer', 'Hardoi', 1.08, 0.5, 700, 0.95, 0, true, 'Buyer Portal', 'DCM Shriram Cane Procurement'),
 ]
 
+// Each feed refresh (version) appends a fresh latest-price tick per market and crop,
+// simulating the upstream e-NAM/AGMARKNET sources publishing new data.
+function withLatestTicks(m: RawMarket, version: number): RawMarket {
+  if (version === 0) return m
+  const r = rng(m.id.length * 991 + version * 7919)
+  const hist: Record<string, PricePoint[]> = {}
+  for (const crop of CROPS) {
+    const h = m.history[crop]
+    const last = h[h.length - 1].price
+    const shifted = h.slice(1).map((p) => ({ day: p.day - 1, price: p.price }))
+    shifted.push({ day: 0, price: Math.round(last * (1 + (r() - 0.48) * 0.03)) })
+    hist[crop] = shifted
+  }
+  return { ...m, history: hist, updatedAt: Date.now() }
+}
+
 // Simulate a dirty feed: duplicates, missing values, outliers, inconsistent units.
-export function fetchRawFeed(): RawMarket[] {
-  const dirty: RawMarket[] = RAW_MARKETS.map((m) => ({ ...m, history: { ...m.history } }))
+export function fetchRawFeed(version = 0): RawMarket[] {
+  const dirty: RawMarket[] = RAW_MARKETS.map((m) => withLatestTicks(m, version))
   // duplicate record
   dirty.push({ ...RAW_MARKETS[0], id: 'lucknow-mandi', raw: true })
   // outlier in Kanpur history (price in paise instead of rupees)

@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, Calculator, ClipboardList, Cpu, Database, Handshake, MessageCircle, Puzzle, RotateCcw, Sprout, Target, Trophy } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChatBot } from './components/ChatBot'
 import { IntegrationStep, ProcessingStep } from './components/DataSteps'
 import { EconomicsStep, EngineStep, RankingStep } from './components/EngineSteps'
@@ -21,6 +21,8 @@ const STAGES = [
 
 const DEFAULT_INPUT: FarmerInput = { crop: 'Wheat', quantityQuintal: 120, grade: 'A', location: 'Lucknow' }
 const CHAT_HIDDEN_KEY = 'agrisell.chat_hidden'
+const FEED_REFRESH_MS = 60_000 // poll upstream feeds every minute
+
 const DEFAULT_CONSTRAINTS: FarmerConstraints = { sellingDeadlineDays: 14, storageCapacityQuintal: 60, budgetInr: 40000, transportLimitKm: 700 }
 
 export default function App() {
@@ -34,7 +36,19 @@ export default function App() {
     localStorage.setItem(CHAT_HIDDEN_KEY, v ? '1' : '0')
   }
 
-  const raw = useMemo(() => integrateData(), [])
+  const [feedVersion, setFeedVersion] = useState(0)
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [lastSync, setLastSync] = useState(() => Date.now())
+  const refreshFeed = useCallback(() => {
+    setFeedVersion((v) => v + 1)
+    setLastSync(Date.now())
+  }, [])
+  useEffect(() => {
+    if (!autoRefresh) return
+    const t = setInterval(refreshFeed, FEED_REFRESH_MS)
+    return () => clearInterval(t)
+  }, [autoRefresh, refreshFeed])
+  const raw = useMemo(() => integrateData(feedVersion), [feedVersion])
   const report = useMemo(() => processData(raw, input.crop), [raw, input.crop])
   const options = useMemo(() => buildOptions(input, constraints, report.markets), [input, constraints, report])
   const ranked = useMemo(() => rankOptions(options), [options])
@@ -90,7 +104,7 @@ export default function App() {
         <main className="min-w-0">
           <div key={stage}>
             {stage === 0 && <InputStep input={input} constraints={constraints} onInput={setInput} onConstraints={setConstraints} />}
-            {stage === 1 && <IntegrationStep raw={raw} />}
+            {stage === 1 && <IntegrationStep raw={raw} feedVersion={feedVersion} lastSync={lastSync} autoRefresh={autoRefresh} onToggleAuto={() => setAutoRefresh((a) => !a)} onRefresh={refreshFeed} />}
             {stage === 2 && <ProcessingStep report={report} />}
             {stage === 3 && <EngineStep input={input} options={options} />}
             {stage === 4 && <EconomicsStep options={options} />}
@@ -148,7 +162,7 @@ function Landing({ onStart, chatToggle }: { onStart: () => void; chatToggle: Rea
           <a href="#how" className="btn-secondary !px-7 !py-3 !text-base">See the pipeline</a>
         </div>
         <div className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-4 sm:grid-cols-4">
-          {[['12', 'UP markets & buyers compared'], ['75', 'UP districts covered'], ['4', 'AI models per option'], ['30 d', 'price history analysed']].map(([v, l]) => (
+          {[['12', 'UP markets & buyers compared'], ['75', 'UP districts covered'], ['4', 'AI models per option'], ['6 mo', 'price history analysed']].map(([v, l]) => (
             <div key={l} className="card p-4"><div className="text-3xl font-extrabold text-emerald-700">{v}</div><div className="text-xs text-slate-500">{l}</div></div>
           ))}
         </div>
@@ -215,7 +229,7 @@ function Landing({ onStart, chatToggle }: { onStart: () => void; chatToggle: Rea
 
 const DESCRIPTIONS = [
   'Crop, quantity, grade, location plus deadline, storage, budget and transport limits.',
-  'Live pull from e-NAM/AGMARKNET, mandis, buyer demand, price history, logistics and storage.',
+  'Live pull from e-NAM/AGMARKNET, mandis, buyer demand, 6-month price history, logistics and storage — auto-refreshed, and every downstream model re-runs on each update.',
   'Cleaning, validation and normalization of the raw feeds into one consistent dataset.',
   'Price model, demand analysis, logistics cost engine and market/buyer matching.',
   'Revenue − transport − storage − other costs = estimated net return per option.',

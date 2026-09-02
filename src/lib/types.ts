@@ -26,6 +26,7 @@ export interface RawMarket {
   district: string
   distanceKm: Record<string, number>
   history: Record<string, PricePoint[]>
+  updatedAt?: number
   demandQuintal: Record<string, number>
   buyer?: string
   reliability: number // 0..1

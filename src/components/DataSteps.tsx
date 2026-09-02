@@ -1,5 +1,6 @@
-import { Brush, CheckCircle2, Database, Globe, Puzzle, ShieldCheck, Store, TrendingUp, Truck, Users, Warehouse, XCircle } from 'lucide-react'
+import { Brush, CheckCircle2, Database, Globe, Puzzle, RefreshCw, ShieldCheck, Store, TrendingUp, Truck, Users, Warehouse, XCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { HISTORY_DAYS } from '../lib/data'
 import type { ProcessingReport, RawMarket } from '../lib/types'
 import { Badge, Stat, StepHeader } from './ui'
 
@@ -7,12 +8,26 @@ const SOURCES = [
   { name: 'e-NAM / AGMARKNET', icon: Globe, desc: 'Daily arrivals & modal prices' },
   { name: 'Mandis (APMC)', icon: Store, desc: 'Local yard price boards' },
   { name: 'Buyer Demand', icon: Users, desc: 'Procurement requests from buyers/FPOs' },
-  { name: 'Historical Price', icon: TrendingUp, desc: '30-day price series per crop' },
+  { name: 'Historical Price', icon: TrendingUp, desc: `${HISTORY_DAYS}-day (6-month) price series per crop` },
   { name: 'Logistics', icon: Truck, desc: 'Distance matrix & freight rates' },
   { name: 'Storage', icon: Warehouse, desc: 'Warehouse capacity & tariffs' },
 ]
 
-export function IntegrationStep({ raw }: { raw: RawMarket[] }) {
+export function IntegrationStep({
+  raw,
+  feedVersion,
+  lastSync,
+  autoRefresh,
+  onToggleAuto,
+  onRefresh,
+}: {
+  raw: RawMarket[]
+  feedVersion: number
+  lastSync: number
+  autoRefresh: boolean
+  onToggleAuto: () => void
+  onRefresh: () => void
+}) {
   const [loaded, setLoaded] = useState(0)
   useEffect(() => {
     const t = setInterval(() => setLoaded((n) => (n >= SOURCES.length ? n : n + 1)), 220)
@@ -22,6 +37,17 @@ export function IntegrationStep({ raw }: { raw: RawMarket[] }) {
   return (
     <section className="card p-6 fade-up">
       <StepHeader step={3} title="Data Integration" subtitle="Pulling live feeds from every market data source" icon={Database} color="bg-amber-500" />
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
+        <span className={`h-2.5 w-2.5 rounded-full ${autoRefresh ? 'animate-pulse bg-emerald-500' : 'bg-slate-400'}`} />
+        <span className="font-semibold text-slate-700">{autoRefresh ? 'Live sync on' : 'Live sync paused'}</span>
+        <span className="text-slate-500">
+          Last update {new Date(lastSync).toLocaleTimeString()} · feed v{feedVersion + 1} · models re-run automatically on every update
+        </span>
+        <div className="ml-auto flex gap-2">
+          <button className="btn-secondary !py-1.5 text-xs" onClick={onToggleAuto}>{autoRefresh ? 'Pause auto-refresh' : 'Resume auto-refresh'}</button>
+          <button className="btn-primary !py-1.5 text-xs" onClick={onRefresh}><RefreshCw size={14} /> Refresh now</button>
+        </div>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {SOURCES.map((s, i) => (
           <div key={s.name} className={`flex items-center gap-3 rounded-xl border p-4 transition ${i < loaded ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50 opacity-60'}`}>
@@ -40,7 +66,7 @@ export function IntegrationStep({ raw }: { raw: RawMarket[] }) {
           <div className="overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-                <tr><th className="px-3 py-2">Market</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Source</th><th className="px-3 py-2">District</th><th className="px-3 py-2">Reliability</th></tr>
+                <tr><th className="px-3 py-2">Market</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Source</th><th className="px-3 py-2">District</th><th className="px-3 py-2">Reliability</th><th className="px-3 py-2">Updated</th></tr>
               </thead>
               <tbody>
                 {raw.map((m, i) => (
@@ -50,6 +76,7 @@ export function IntegrationStep({ raw }: { raw: RawMarket[] }) {
                     <td className="px-3 py-2 text-slate-500">{m.source}</td>
                     <td className="px-3 py-2 text-slate-500">{m.district}</td>
                     <td className="px-3 py-2">{Math.round(m.reliability * 100)}%</td>
+                    <td className="px-3 py-2 text-xs text-slate-500">{m.updatedAt ? new Date(m.updatedAt).toLocaleTimeString() : 'initial load'}</td>
                   </tr>
                 ))}
               </tbody>

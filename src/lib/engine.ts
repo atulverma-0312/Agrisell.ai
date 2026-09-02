@@ -12,8 +12,8 @@ import type {
 } from './types'
 
 // ---------- Step 3: Data Integration ----------
-export function integrateData(): RawMarket[] {
-  return fetchRawFeed()
+export function integrateData(version = 0): RawMarket[] {
+  return fetchRawFeed(version)
 }
 
 // ---------- Step 4: Data Processing (cleaning, validation, normalization) ----------
