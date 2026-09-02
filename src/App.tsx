@@ -1,9 +1,10 @@
-import { ArrowLeft, ArrowRight, Calculator, ClipboardList, Cpu, Database, Handshake, MessageCircle, Puzzle, RotateCcw, Sprout, Target, Trophy } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Calculator, ClipboardList, Cpu, Database, Handshake, LayoutDashboard, MessageCircle, Puzzle, RotateCcw, Sprout, Target, Trophy } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChatBot } from './components/ChatBot'
 import { IntegrationStep, ProcessingStep } from './components/DataSteps'
 import { EconomicsStep, EngineStep, RankingStep } from './components/EngineSteps'
 import { InputStep } from './components/InputStep'
+import { Dashboard } from './components/Dashboard'
 import { OutputStep, TransactionStep } from './components/OutputSteps'
 import { buildOptions, buildRecommendation, integrateData, processData, rankOptions } from './lib/engine'
 import type { FarmerConstraints, FarmerInput } from './lib/types'
@@ -17,6 +18,7 @@ const STAGES = [
   { key: 'rank', label: 'Option Ranking', icon: Trophy, ai: true },
   { key: 'output', label: 'Personalized Output', icon: Target, ai: true },
   { key: 'transact', label: 'Buyer Connection', icon: Handshake },
+  { key: 'dashboard', label: 'Market Dashboard', icon: LayoutDashboard, ai: true },
 ] as const
 
 const DEFAULT_INPUT: FarmerInput = { crop: 'Wheat', quantityQuintal: 120, grade: 'A', location: 'Lucknow' }
@@ -111,9 +113,18 @@ export default function App() {
             {stage === 5 && <RankingStep ranked={ranked} />}
             {stage === 6 && <OutputStep input={input} constraints={constraints} rec={rec} />}
             {stage === 7 && <TransactionStep input={input} rec={rec} />}
+            {stage === 8 && (
+              <Dashboard
+                input={input}
+                constraints={constraints}
+                markets={report.markets}
+                rec={rec}
+                onUseDistrict={(d) => { setInput({ ...input, location: d }); setStage(6) }}
+              />
+            )}
           </div>
 
-          <div className="mt-6 flex items-center justify-between">
+          <div className="mt-6 mb-20 flex items-center justify-between">
             <button className="btn-secondary" onClick={() => setStage((s) => Math.max(0, s - 1))} disabled={stage === 0}>
               <ArrowLeft size={16} /> Back
             </button>
@@ -171,7 +182,7 @@ function Landing({ onStart, chatToggle }: { onStart: () => void; chatToggle: Rea
       <section id="how" className="mx-auto max-w-7xl px-4 py-12">
         <h2 className="text-center text-3xl font-bold">How it works</h2>
         <p className="mt-2 text-center text-slate-500">Every stage of the pipeline is visible and explainable.</p>
-        <ol className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <ol className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {STAGES.map((s, i) => (
             <li key={s.key} className="card relative p-5">
               <div className="flex items-center gap-3">
@@ -236,4 +247,5 @@ const DESCRIPTIONS = [
   'AI utility score ranks every feasible option: best, second and third.',
   'Best market, buyer, selling time, price, net return, reason and confidence.',
   'Connect, negotiate, secure, arrange logistics and get paid.',
+  '6-month price dashboard: profit & loss, how prices can rise, and a clickable UP district map with direct results.',
 ]

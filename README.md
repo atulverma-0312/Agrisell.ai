@@ -31,3 +31,7 @@ Optional: set `VITE_OPENAI_API_KEY` in `.env` to pre-fill the generative explana
 ## Uttar Pradesh scope
 
 All demo data is restricted to Uttar Pradesh: the farmer location dropdown lists all 75 UP districts (`src/lib/up.ts`), and the market/buyer feed (`src/lib/data.ts`) contains only UP mandis, e-NAM centres, FPOs and buyers. Distances are computed per district from approximate coordinates.
+
+## Market Dashboard (final stage)
+
+6-month weekly price history (UP average, range and top markets), profit & loss per market against cost of cultivation, price-growth outlook with 30/60/90-day forecasts and actionable levers, and an interactive Uttar Pradesh district choropleth (`src/lib/up-districts.json`, simplified from the udit-001/india-maps-data Census-2011 boundaries). Clicking a district shows its best market, expected price, net return and profit directly, and can re-run the pipeline with that district as the farmer location.
