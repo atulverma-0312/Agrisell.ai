@@ -20,6 +20,7 @@ const STAGES = [
   { key: 'transact', label: 'Buyer Connection', icon: Handshake },
   { key: 'dashboard', label: 'Market Dashboard', icon: LayoutDashboard, ai: true },
 ] as const
+const DASHBOARD_STAGE = STAGES.length - 1
 
 const DEFAULT_INPUT: FarmerInput = { crop: 'Wheat', quantityQuintal: 120, grade: 'A', location: 'Lucknow' }
 const CHAT_HIDDEN_KEY = 'agrisell.chat_hidden'
@@ -63,7 +64,8 @@ export default function App() {
     </button>
   )
 
-  if (!started) return <><Landing onStart={() => setStarted(true)} chatToggle={chatToggle} />{chat}</>
+  const openDashboard = () => { setStarted(true); setStage(DASHBOARD_STAGE) }
+  if (!started) return <><Landing onStart={() => setStarted(true)} onDashboard={openDashboard} chatToggle={chatToggle} />{chat}</>
 
   return (
     <div className="min-h-screen">
@@ -75,6 +77,11 @@ export default function App() {
           </button>
           <div className="flex items-center gap-2">
             {chatToggle}
+            {stage !== DASHBOARD_STAGE && (
+              <button className="btn-secondary !py-1.5 text-xs" onClick={openDashboard}>
+                <LayoutDashboard size={14} /> Market Dashboard
+              </button>
+            )}
             <button className="btn-secondary !py-1.5 text-xs" onClick={() => { setStage(0); setInput(DEFAULT_INPUT); setConstraints(DEFAULT_CONSTRAINTS) }}>
               <RotateCcw size={14} /> Reset
             </button>
@@ -88,11 +95,11 @@ export default function App() {
             {STAGES.map((s, i) => (
               <li key={s.key}>
                 <button
-                  onClick={() => i <= stage && setStage(i)}
+                  onClick={() => (i <= stage || i === DASHBOARD_STAGE) && setStage(i)}
                   className={`flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm transition ${
-                    i === stage ? 'bg-emerald-600 text-white shadow' : i < stage ? 'bg-white text-slate-700 hover:bg-slate-100' : 'text-slate-400'
+                    i === stage ? 'bg-emerald-600 text-white shadow' : i < stage || i === DASHBOARD_STAGE ? 'bg-white text-slate-700 hover:bg-slate-100' : 'text-slate-400'
                   }`}
-                  disabled={i > stage}
+                  disabled={i > stage && i !== DASHBOARD_STAGE}
                 >
                   <s.icon size={18} />
                   <span className="flex-1">{s.label}</span>
@@ -143,7 +150,7 @@ export default function App() {
   )
 }
 
-function Landing({ onStart, chatToggle }: { onStart: () => void; chatToggle: React.ReactNode }) {
+function Landing({ onStart, onDashboard, chatToggle }: { onStart: () => void; onDashboard: () => void; chatToggle: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-white">
       <header className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5">
@@ -156,6 +163,7 @@ function Landing({ onStart, chatToggle }: { onStart: () => void; chatToggle: Rea
         </nav>
         <div className="flex items-center gap-2">
           {chatToggle}
+          <button className="btn-secondary" onClick={onDashboard}><LayoutDashboard size={16} /> Market Dashboard</button>
           <button className="btn-primary" onClick={onStart}>Get recommendation</button>
         </div>
       </header>
@@ -170,7 +178,7 @@ function Landing({ onStart, chatToggle }: { onStart: () => void; chatToggle: Rea
         </p>
         <div className="mt-8 flex justify-center gap-3">
           <button className="btn-primary !px-7 !py-3 !text-base" onClick={onStart}>Start free analysis <ArrowRight size={18} /></button>
-          <a href="#how" className="btn-secondary !px-7 !py-3 !text-base">See the pipeline</a>
+          <button className="btn-secondary !px-7 !py-3 !text-base" onClick={onDashboard}><LayoutDashboard size={18} /> Open Market Dashboard</button>
         </div>
         <div className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-4 sm:grid-cols-4">
           {[['12', 'UP markets & buyers compared'], ['75', 'UP districts covered'], ['4', 'AI models per option'], ['6 mo', 'price history analysed']].map(([v, l]) => (
