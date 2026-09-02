@@ -1,4 +1,4 @@
-import { ClipboardList, Leaf } from 'lucide-react'
+import { ClipboardList, Leaf, ScanSearch } from 'lucide-react'
 import { CROPS, LOCATIONS } from '../lib/data'
 import type { FarmerConstraints, FarmerInput, Grade } from '../lib/types'
 import { StepHeader } from './ui'
@@ -8,11 +8,13 @@ export function InputStep({
   constraints,
   onInput,
   onConstraints,
+  onGradeFromPhoto,
 }: {
   input: FarmerInput
   constraints: FarmerConstraints
   onInput: (v: FarmerInput) => void
   onConstraints: (v: FarmerConstraints) => void
+  onGradeFromPhoto?: () => void
 }) {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -31,7 +33,14 @@ export function InputStep({
               onChange={(e) => onInput({ ...input, quantityQuintal: Math.max(1, Number(e.target.value)) })} />
           </div>
           <div>
-            <label className="label" htmlFor="grade">Quality / Grade</label>
+            <label className="label" htmlFor="grade">
+              Quality / Grade
+              {onGradeFromPhoto && (
+                <button type="button" className="ml-2 inline-flex items-center gap-1 text-xs font-semibold text-sky-700 hover:underline" onClick={onGradeFromPhoto}>
+                  <ScanSearch size={12} /> Estimate from photo (AI)
+                </button>
+              )}
+            </label>
             <select id="grade" className="input" value={input.grade} onChange={(e) => onInput({ ...input, grade: e.target.value as Grade })}>
               <option value="A">Grade A (premium)</option>
               <option value="B">Grade B (standard)</option>

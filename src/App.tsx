@@ -1,13 +1,15 @@
-import { ArrowLeft, ArrowRight, Calculator, ClipboardList, Cpu, Database, Handshake, LayoutDashboard, MessageCircle, Puzzle, RotateCcw, Sprout, Target, Trophy } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Calculator, ClipboardList, Cpu, Database, Handshake, LayoutDashboard, MessageCircle, Puzzle, RotateCcw, ScanSearch, Sprout, Target, Trophy } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChatBot } from './components/ChatBot'
 import { IntegrationStep, ProcessingStep } from './components/DataSteps'
 import { EconomicsStep, EngineStep, RankingStep } from './components/EngineSteps'
 import { InputStep } from './components/InputStep'
 import { Dashboard } from './components/Dashboard'
+import { QualityGrading } from './components/QualityGrading'
+import { CROPS } from './lib/data'
 import { OutputStep, TransactionStep } from './components/OutputSteps'
 import { buildOptions, buildRecommendation, integrateData, processData, rankOptions } from './lib/engine'
-import type { FarmerConstraints, FarmerInput } from './lib/types'
+import type { FarmerConstraints, FarmerInput, Grade } from './lib/types'
 
 const STAGES = [
   { key: 'input', label: 'Farmer Input & Constraints', icon: ClipboardList },
@@ -31,6 +33,7 @@ const DEFAULT_CONSTRAINTS: FarmerConstraints = { sellingDeadlineDays: 14, storag
 export default function App() {
   const [started, setStarted] = useState(false)
   const [stage, setStage] = useState(0)
+  const [view, setView] = useState<'pipeline' | 'grading'>('pipeline')
   const [input, setInput] = useState(DEFAULT_INPUT)
   const [constraints, setConstraints] = useState(DEFAULT_CONSTRAINTS)
   const [chatHidden, setChatHiddenState] = useState(() => localStorage.getItem(CHAT_HIDDEN_KEY) === '1')
@@ -64,8 +67,14 @@ export default function App() {
     </button>
   )
 
-  const openDashboard = () => { setStarted(true); setStage(DASHBOARD_STAGE) }
-  if (!started) return <><Landing onStart={() => setStarted(true)} onDashboard={openDashboard} chatToggle={chatToggle} />{chat}</>
+  const openDashboard = () => { setStarted(true); setView('pipeline'); setStage(DASHBOARD_STAGE) }
+  const openGrading = () => { setStarted(true); setView('grading') }
+  const goStage = (i: number) => { setView('pipeline'); setStage(i) }
+  const useGrade = (crop: string, grade: Grade, quantityQuintal: number) => {
+    setInput({ ...input, crop: (CROPS as readonly string[]).includes(crop) ? crop : input.crop, grade, quantityQuintal })
+    goStage(0)
+  }
+  if (!started) return <><Landing onStart={() => setStarted(true)} onDashboard={openDashboard} onGrading={openGrading} chatToggle={chatToggle} />{chat}</>
 
   return (
     <div className="min-h-screen">
@@ -77,12 +86,17 @@ export default function App() {
           </button>
           <div className="flex items-center gap-2">
             {chatToggle}
-            {stage !== DASHBOARD_STAGE && (
+            {view !== 'grading' && (
+              <button className="btn-secondary !py-1.5 text-xs" onClick={openGrading}>
+                <ScanSearch size={14} /> AI Quality Grading
+              </button>
+            )}
+            {(stage !== DASHBOARD_STAGE || view === 'grading') && (
               <button className="btn-secondary !py-1.5 text-xs" onClick={openDashboard}>
                 <LayoutDashboard size={14} /> Market Dashboard
               </button>
             )}
-            <button className="btn-secondary !py-1.5 text-xs" onClick={() => { setStage(0); setInput(DEFAULT_INPUT); setConstraints(DEFAULT_CONSTRAINTS) }}>
+            <button className="btn-secondary !py-1.5 text-xs" onClick={() => { goStage(0); setInput(DEFAULT_INPUT); setConstraints(DEFAULT_CONSTRAINTS) }}>
               <RotateCcw size={14} /> Reset
             </button>
           </div>
@@ -95,9 +109,9 @@ export default function App() {
             {STAGES.map((s, i) => (
               <li key={s.key}>
                 <button
-                  onClick={() => (i <= stage || i === DASHBOARD_STAGE) && setStage(i)}
+                  onClick={() => (i <= stage || i === DASHBOARD_STAGE) && goStage(i)}
                   className={`flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm transition ${
-                    i === stage ? 'bg-emerald-600 text-white shadow' : i < stage || i === DASHBOARD_STAGE ? 'bg-white text-slate-700 hover:bg-slate-100' : 'text-slate-400'
+                    i === stage && view === 'pipeline' ? 'bg-emerald-600 text-white shadow' : i < stage || i === DASHBOARD_STAGE ? 'bg-white text-slate-700 hover:bg-slate-100' : 'text-slate-400'
                   }`}
                   disabled={i > stage && i !== DASHBOARD_STAGE}
                 >
@@ -108,11 +122,37 @@ export default function App() {
               </li>
             ))}
           </ol>
+          <div className="mt-3 border-t border-slate-200 pt-3">
+            <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Tools</div>
+            <button
+              onClick={openGrading}
+              className={`flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                view === 'grading' ? 'bg-sky-600 text-white shadow' : 'bg-white text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <ScanSearch size={18} />
+              <span className="flex-1">AI Quality Grading</span>
+              <span className={`rounded px-1.5 text-[10px] font-bold ${view === 'grading' ? 'bg-white/20' : 'bg-violet-100 text-violet-700'}`}>AI</span>
+            </button>
+          </div>
         </aside>
 
         <main className="min-w-0">
+          {view === 'grading' ? (
+            <div className="mb-20">
+              <QualityGrading
+                step={0}
+                markets={report.markets}
+                defaultCrop={input.crop}
+                defaultLocation={input.location}
+                onUseGrade={useGrade}
+                onCompareMarkets={() => goStage(6)}
+              />
+            </div>
+          ) : (
+          <>
           <div key={stage}>
-            {stage === 0 && <InputStep input={input} constraints={constraints} onInput={setInput} onConstraints={setConstraints} />}
+            {stage === 0 && <InputStep input={input} constraints={constraints} onInput={setInput} onConstraints={setConstraints} onGradeFromPhoto={openGrading} />}
             {stage === 1 && <IntegrationStep raw={raw} feedVersion={feedVersion} lastSync={lastSync} autoRefresh={autoRefresh} onToggleAuto={() => setAutoRefresh((a) => !a)} onRefresh={refreshFeed} />}
             {stage === 2 && <ProcessingStep report={report} />}
             {stage === 3 && <EngineStep input={input} options={options} />}
@@ -144,19 +184,22 @@ export default function App() {
               <button className="btn-primary" onClick={() => setStage(0)}>Start new sale</button>
             )}
           </div>
+          </>
+          )}
         </main>
       </div>
     </div>
   )
 }
 
-function Landing({ onStart, onDashboard, chatToggle }: { onStart: () => void; onDashboard: () => void; chatToggle: React.ReactNode }) {
+function Landing({ onStart, onDashboard, onGrading, chatToggle }: { onStart: () => void; onDashboard: () => void; onGrading: () => void; chatToggle: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-white">
       <header className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5">
         <div className="flex items-center gap-2 text-xl font-bold text-emerald-700"><Sprout size={26} /> AgriSell AI</div>
         <nav className="hidden gap-6 text-sm font-medium text-slate-600 md:flex">
           <a href="#how">How it works</a>
+          <a href="#grading">AI Quality Grading</a>
           <a href="#ai">AI models</a>
           <a href="#sources">Data sources</a>
           <a href="#chat">AI assistant</a>
@@ -179,6 +222,7 @@ function Landing({ onStart, onDashboard, chatToggle }: { onStart: () => void; on
         <div className="mt-8 flex justify-center gap-3">
           <button className="btn-primary !px-7 !py-3 !text-base" onClick={onStart}>Start free analysis <ArrowRight size={18} /></button>
           <button className="btn-secondary !px-7 !py-3 !text-base" onClick={onDashboard}><LayoutDashboard size={18} /> Open Market Dashboard</button>
+          <button className="btn-secondary !px-7 !py-3 !text-base" onClick={onGrading}><ScanSearch size={18} /> AI Quality Grading</button>
         </div>
         <div className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-4 sm:grid-cols-4">
           {[['12', 'UP markets & buyers compared'], ['75', 'UP districts covered'], ['4', 'AI models per option'], ['6 mo', 'price history analysed']].map(([v, l]) => (
@@ -205,15 +249,27 @@ function Landing({ onStart, onDashboard, chatToggle }: { onStart: () => void; on
         </ol>
       </section>
 
+      <section id="grading" className="mx-auto max-w-7xl px-4 py-6">
+        <div className="card flex flex-col items-center gap-6 border-sky-200 bg-gradient-to-r from-sky-50 to-white p-8 md:flex-row">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-sky-600 text-white"><ScanSearch size={32} /></div>
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold">AI Quality Grading <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-700">AI-Assisted • Preliminary</span></h2>
+            <p className="mt-1 text-slate-600">Upload a produce photo → get a preliminary visual quality assessment: grade (A/B/C), quality score, confidence, detected visible issues and why the AI decided so. Use the grade directly in your selling strategy. Not an official APMC/e-NAM certification.</p>
+          </div>
+          <button className="btn-primary !bg-sky-600 hover:!bg-sky-700" onClick={onGrading}>Analyze Produce <ArrowRight size={16} /></button>
+        </div>
+      </section>
+
       <section id="ai" className="bg-slate-900 py-14 text-white">
         <div className="mx-auto max-w-7xl px-4">
           <h2 className="text-center text-3xl font-bold">Where AI is used</h2>
-          <div className="mt-8 grid gap-4 md:grid-cols-4">
+          <div className="mt-8 grid gap-4 md:grid-cols-5">
             {[
               ['Price prediction', 'Ensemble of linear trend regression and Holt exponential smoothing forecasts prices up to your deadline and picks the best selling day.'],
               ['Demand forecasting', 'Buyer appetite and saturation modelling estimate how much of your lot each market can absorb without depressing price.'],
               ['Multi-criteria ranking', 'A utility score blends net return, market suitability, demand and volatility risk to rank options and compute confidence.'],
               ['Explainable advice', 'Recommendation reasons are generated automatically, with optional LLM rewriting in Hindi, Urdu, Awadhi and Bhojpuri.'],
+              ['Photo quality grading', 'Replaceable vision-model service estimates visual grade, score and confidence from produce photos, with explainable factors.'],
             ].map(([t, d]) => (
               <div key={t} className="rounded-xl border border-slate-700 bg-slate-800 p-5"><div className="font-semibold text-emerald-300">{t}</div><p className="mt-2 text-sm text-slate-300">{d}</p></div>
             ))}

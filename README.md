@@ -35,3 +35,9 @@ All demo data is restricted to Uttar Pradesh: the farmer location dropdown lists
 ## Market Dashboard (final stage)
 
 6-month weekly price history (UP average, range and top markets), profit & loss per market against cost of cultivation, price-growth outlook with 30/60/90-day forecasts and actionable levers, and an interactive Uttar Pradesh district choropleth (`src/lib/up-districts.json`, simplified from the udit-001/india-maps-data Census-2011 boundaries). Clicking a district shows its best market, expected price, net return and profit directly, and can re-run the pipeline with that district as the farmer location.
+
+## AI Quality Grading (photo-based)
+
+Farmers select a crop, upload/capture 1–5 photos (JPG/PNG ≤10 MB), pass a basic image-quality check (resolution, brightness, blur, produce coverage) and get an AI-assisted preliminary visual grade (A/B/C), 0–100 quality score, confidence meter with configurable thresholds, parameter breakdown, detected visible issues, explainable positive/negative factors, grade comparison, illustrative what-if revenue by grade (using live UP mandi prices), farmer-friendly recommendations, downloadable report, browser-local grading history and a one-click hand-off of crop/grade/quantity into the selling pipeline. English/हिंदी toggle.
+
+`src/lib/grading.ts` defines the replaceable `QualityGradingService` interface with three implementations: a clearly-labelled **Demo** heuristic grader (pixel statistics, no trained model), an OpenAI vision grader (uses the same key as the AI assistant) and a `remoteApiService` for a future `POST /api/quality/analyze` backend (set `VITE_GRADING_API`). Results are never presented as official APMC/e-NAM/laboratory certification.

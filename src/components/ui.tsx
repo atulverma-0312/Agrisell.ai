@@ -24,7 +24,7 @@ export function StepHeader({
       </div>
       <div>
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Step {step}</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">{step > 0 ? `Step ${step}` : 'Tool'}</span>
           {ai && (
             <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">
               <Sparkles size={12} /> AI-powered
