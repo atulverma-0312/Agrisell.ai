@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Calculator, ClipboardList, Cpu, Database, Handshake, LayoutDashboard, MessageCircle, Puzzle, RotateCcw, ScanSearch, Sprout, Target, Trophy } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Calculator, ClipboardList, Cpu, Database, Handshake, LayoutDashboard, MessageCircle, Puzzle, RotateCcw, ScanSearch, Sprout, Target, Trophy, Users } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChatBot } from './components/ChatBot'
 import { IntegrationStep, ProcessingStep } from './components/DataSteps'
@@ -6,6 +6,8 @@ import { EconomicsStep, EngineStep, RankingStep } from './components/EngineSteps
 import { InputStep } from './components/InputStep'
 import { Dashboard } from './components/Dashboard'
 import { QualityGrading } from './components/QualityGrading'
+import { Portal } from './components/portal/Portal'
+import { addListing, loadDb, saveDb } from './lib/store'
 import { CROPS } from './lib/data'
 import { OutputStep, TransactionStep } from './components/OutputSteps'
 import { buildOptions, buildRecommendation, integrateData, processData, rankOptions } from './lib/engine'
@@ -34,7 +36,8 @@ const DEFAULT_CONSTRAINTS: FarmerConstraints = { sellingDeadlineDays: 14, storag
 export default function App() {
   const [started, setStarted] = useState(false)
   const [stage, setStage] = useState(0)
-  const [view, setView] = useState<'pipeline' | 'grading'>('pipeline')
+  const [view, setView] = useState<'pipeline' | 'grading' | 'portal'>('pipeline')
+  const [gradingReturn, setGradingReturn] = useState<'pipeline' | 'portal'>('pipeline')
   const [input, setInput] = useState(DEFAULT_INPUT)
   const [aiAssessment, setAiAssessment] = useState<SharedAssessment | null>(null)
   const [constraints, setConstraints] = useState(DEFAULT_CONSTRAINTS)
@@ -70,19 +73,61 @@ export default function App() {
   )
 
   const openDashboard = () => { setStarted(true); setView('pipeline'); setStage(DASHBOARD_STAGE) }
-  const openGrading = () => { setStarted(true); setView('grading') }
+  const openGrading = (from: 'pipeline' | 'portal' = 'pipeline') => { setStarted(true); setGradingReturn(from); setView('grading') }
+  const openPortal = () => { setStarted(true); setView('portal') }
   const goStage = (i: number) => { setView('pipeline'); setStage(i) }
   const useGrade = (a: SharedAssessment) => {
     setAiAssessment(a)
-    setInput({
-      ...input,
-      crop: (CROPS as readonly string[]).includes(a.crop) ? a.crop : input.crop,
-      grade: a.predictedGrade,
-      quantityQuintal: Math.max(1, Math.round(a.quantityKg / 100)),
-    })
+    const crop = (CROPS as readonly string[]).includes(a.crop) ? a.crop : input.crop
+    const quantityQuintal = Math.max(1, Math.round(a.quantityKg / 100))
+    setInput({ ...input, crop, grade: a.predictedGrade, quantityQuintal })
+    if (gradingReturn === 'portal') {
+      // Photo grade becomes a graded crop lot in the farmer portal.
+      saveDb(
+        addListing(loadDb(), {
+          crop,
+          variety: a.variety ?? '',
+          quantityQuintal,
+          grade: a.predictedGrade,
+          qualitySource: 'ai-photo',
+          qualityScore: a.qualityScore,
+          qualityConfidence: a.confidence,
+          district: input.location,
+          harvestDate: new Date().toISOString().slice(0, 10),
+        }).db,
+      )
+      setView('portal')
+      return
+    }
     goStage(0)
   }
-  if (!started) return <><Landing onStart={() => setStarted(true)} onDashboard={openDashboard} onGrading={openGrading} chatToggle={chatToggle} />{chat}</>
+  if (!started)
+    return (
+      <>
+        <Landing onStart={() => setStarted(true)} onDashboard={openDashboard} onGrading={() => openGrading('pipeline')} onPortal={openPortal} chatToggle={chatToggle} />
+        {chat}
+      </>
+    )
+
+  if (view === 'portal')
+    return (
+      <>
+        {chat}
+        <Portal
+          markets={report.markets}
+          lastSync={lastSync}
+          onRefreshFeed={refreshFeed}
+          onExit={() => setView('pipeline')}
+          onOpenGrading={() => openGrading('portal')}
+          onOpenMarketDashboard={openDashboard}
+          crop={input.crop}
+          district={input.location}
+          onCrop={(c) => setInput((i) => ({ ...i, crop: c }))}
+          onDistrict={(d) => setInput((i) => ({ ...i, location: d }))}
+          chatToggle={chatToggle}
+        />
+      </>
+    )
 
   return (
     <div className="min-h-screen">
@@ -94,8 +139,11 @@ export default function App() {
           </button>
           <div className="flex items-center gap-2">
             {chatToggle}
+            <button className="btn-secondary !py-1.5 text-xs" onClick={openPortal}>
+              <Users size={14} /> Farmer Dashboard
+            </button>
             {view !== 'grading' && (
-              <button className="btn-secondary !py-1.5 text-xs" onClick={openGrading}>
+              <button className="btn-secondary !py-1.5 text-xs" onClick={() => openGrading('pipeline')}>
                 <ScanSearch size={14} /> AI Quality Grading
               </button>
             )}
@@ -133,7 +181,7 @@ export default function App() {
           <div className="mt-3 border-t border-slate-200 pt-3">
             <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Tools</div>
             <button
-              onClick={openGrading}
+              onClick={() => openGrading('pipeline')}
               className={`flex w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2.5 text-left text-sm transition ${
                 view === 'grading' ? 'bg-sky-600 text-white shadow' : 'bg-white text-slate-700 hover:bg-slate-100'
               }`}
@@ -153,7 +201,7 @@ export default function App() {
                 markets={report.markets}
                 defaultLocation={input.location}
                 onUseGrade={useGrade}
-                onCompareMarkets={() => goStage(6)}
+                onCompareMarkets={() => (gradingReturn === 'portal' ? setView('portal') : goStage(6))}
               />
             </div>
           ) : (
@@ -199,7 +247,7 @@ export default function App() {
   )
 }
 
-function Landing({ onStart, onDashboard, onGrading, chatToggle }: { onStart: () => void; onDashboard: () => void; onGrading: () => void; chatToggle: React.ReactNode }) {
+function Landing({ onStart, onDashboard, onGrading, onPortal, chatToggle }: { onStart: () => void; onDashboard: () => void; onGrading: () => void; onPortal: () => void; chatToggle: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-white">
       <header className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5">
@@ -214,7 +262,7 @@ function Landing({ onStart, onDashboard, onGrading, chatToggle }: { onStart: () 
         <div className="flex items-center gap-2">
           {chatToggle}
           <button className="btn-secondary" onClick={onDashboard}><LayoutDashboard size={16} /> Market Dashboard</button>
-          <button className="btn-primary" onClick={onStart}>Get recommendation</button>
+          <button className="btn-primary" onClick={onPortal}><Users size={16} /> Farmer Dashboard</button>
         </div>
       </header>
 
@@ -226,8 +274,9 @@ function Landing({ onStart, onDashboard, onGrading, chatToggle }: { onStart: () 
         <p className="mx-auto mt-5 max-w-2xl text-lg text-slate-600">
           AgriSell AI integrates Uttar Pradesh e-NAM, mandi, buyer and logistics data across all 75 districts, runs AI price & demand models against your own constraints, and hands you a ranked, explained recommendation with net-return estimates.
         </p>
-        <div className="mt-8 flex justify-center gap-3">
-          <button className="btn-primary !px-7 !py-3 !text-base" onClick={onStart}>Start free analysis <ArrowRight size={18} /></button>
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <button className="btn-primary !px-7 !py-3 !text-base" onClick={onPortal}><Users size={18} /> Open Farmer Dashboard</button>
+          <button className="btn-secondary !px-7 !py-3 !text-base" onClick={onStart}>Start free analysis <ArrowRight size={18} /></button>
           <button className="btn-secondary !px-7 !py-3 !text-base" onClick={onDashboard}><LayoutDashboard size={18} /> Open Market Dashboard</button>
           <button className="btn-secondary !px-7 !py-3 !text-base" onClick={onGrading}><ScanSearch size={18} /> AI Quality Grading</button>
         </div>
